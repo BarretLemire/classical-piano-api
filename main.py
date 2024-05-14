@@ -1,7 +1,7 @@
 import json
 from fastapi import FastAPI, HTTPException
-from typing import List, Dict
-from models import Composer, Pieces
+from typing import List, Dict, Optional
+from models import Composer, Pieces, PieceUpdate
 
 with open("composers.json", "r") as f:
     composers_list: List[Dict] = json.load(f)
@@ -15,12 +15,12 @@ app = FastAPI()
 async def get_composers() -> List[Dict]:
     return composers_list
 
-@app.get('/pieces/{composer_id}')
-async def get_pieces(composer_id: int) -> List[Dict]:
-    pieces = [piece for piece in piece_list if piece["composer_id"] == composer_id]
-    if not pieces:
-        raise HTTPException(status_code=404, detail='Pieces Not Found')
-    return pieces
+@app.get('/pieces', response_model=List[Pieces])
+async def get_pieces(composer_id: Optional[int] = None):
+    if composer_id:
+        return [Pieces(**piece) for piece in piece_list if piece["composer_id"] == composer_id]
+    return [Pieces(**piece) for piece in piece_list]
+
 
 @app.post('/new/composer/{composer_id}')
 async def new_composer(name: str, composer_id: int, home_country: str) -> Dict:
@@ -46,10 +46,10 @@ async def update_composer(composer_id: int, name: str = None, home_country: str 
     raise HTTPException(status_code=404, detail='Composer Not Found')
 
 @app.put('pieces/{piece_name}')
-async def update_piece(piece_name: str, piece_update: dict):
+async def update_piece(piece_name: str, piece_update: PieceUpdate):
     for piece in piece_list:
         if piece['name'] == piece_name:
-            piece.update(piece_update)
+            piece.update(piece_update.dict(exclude_unset=True))
             return piece
     raise HTTPException(status_code=404, detail='Piece not found')
 
@@ -58,7 +58,7 @@ async def update_piece(piece_name: str, piece_update: dict):
 async def delete_composer(composer_id: int):
     for composer in composers_list:
        if composer['composer_id'] == composer_id:
-           composers_list.remove(composer)
+           composers_list.pop(composer)
            return composer
     raise HTTPException(status_code=404, detail='Composer not found')
 

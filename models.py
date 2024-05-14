@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-
+from typing import Optional
 
 class Composer(BaseModel):
     name: str
@@ -9,6 +9,12 @@ class Composer(BaseModel):
 
 class Pieces(BaseModel):
     name: str
-    alt_name: str
+    alt_name: Optional[str]
     difficulty: int
     composer_id: int
+
+class PieceUpdate(BaseModel):
+    name: Optional[str]
+    alt_name: Optional[str]
+    difficulty: Optional[int]
+    composer_id: Optional[int]
