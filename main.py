@@ -1,7 +1,26 @@
 import json
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from typing import List, Dict, Optional
-from models import Composer, Pieces, PieceUpdate
+from pydantic import BaseModel
+
+
+class Composer(BaseModel):
+    name: str
+    composer_id: int
+    home_country: str
+
+class Pieces(BaseModel):
+    name: Optional[str]
+    alt_name: Optional[str]
+    difficulty: Optional[int]
+    composer_id: Optional[int]
+
+class PieceUpdate(BaseModel):
+    name: Optional[str]
+    alt_name: Optional[str]
+    difficulty: Optional[int]
+    composer_id: Optional[int]
+
 
 with open("composers.json", "r") as f:
     composers_list: List[Dict] = json.load(f)
@@ -11,63 +30,53 @@ with open("pieces.json", "r") as f:
 
 app = FastAPI()
 
-@app.get('/composers')
-async def get_composers() -> List[Dict]:
+@app.get('/composers', response_model=List[Composer])
+async def get_composers() -> List[Composer]:
     return composers_list
 
 @app.get('/pieces', response_model=List[Pieces])
-async def get_pieces(composer_id: Optional[int] = None):
-    if composer_id:
+async def get_pieces(composer_id: Optional[int] = Query(None)) -> List[Pieces]:
+    if composer_id is not None:
         return [Pieces(**piece) for piece in piece_list if piece["composer_id"] == composer_id]
     return [Pieces(**piece) for piece in piece_list]
 
 
-@app.post('/new/composer/{composer_id}')
-async def new_composer(name: str, composer_id: int, home_country: str) -> Dict:
-    new_composer_data = {"name": name, "composer_id": composer_id, "home_country": home_country}
-    composers_list.append(new_composer_data)
-    return new_composer_data
+@app.post('/composers', response_model=Composer)
+async def new_composer(composer: Composer) -> Composer:
+    composers_list.append(composer.dict())
+    return composer
 
-@app.post('/new/piece/{composer_id}')
-async def new_piece(name: str, alt_name: str, difficulty: int, composer_id: int) -> Dict:
-    new_piece_data = {"name": name, "alt_name": alt_name, "difficulty": difficulty, "composer_id": composer_id}
-    piece_list.append(new_piece_data)
-    return new_piece_data
+@app.post('/pieces', response_model=Pieces)
+async def new_piece(piece: Pieces) -> Pieces:
+    piece_list.append(piece.dict())
+    return piece
 
-@app.put('/composers/{composer_id}')
-async def update_composer(composer_id: int, name: str = None, home_country: str = None) -> Dict:
-    for composer in composers_list:
-        if composer["composer_id"] == composer_id:
-            if name:
-                composer["name"] = name
-            if home_country:
-                composer["home_country"] = home_country
-            return composer
+@app.put('/composers/{composer_id}', response_model=Composer)
+async def update_composer(composer_id: int, composer: Composer) -> Composer:
+    for idx, comp in enumerate(composers_list):
+        if comp["composer_id"] == composer_id:
+            composers_list[idx].update(composer.dict(exclude_unset=True))
+            return composers_list[idx]
     raise HTTPException(status_code=404, detail='Composer Not Found')
 
-@app.put('pieces/{piece_name}')
-async def update_piece(piece_name: str, piece_update: PieceUpdate):
+@app.put('/pieces/{piece_name}', response_model=Pieces)
+async def update_piece(piece_name: str, piece_update: PieceUpdate) -> Pieces:
     for piece in piece_list:
         if piece['name'] == piece_name:
             piece.update(piece_update.dict(exclude_unset=True))
             return piece
-    raise HTTPException(status_code=404, detail='Piece not found')
+    raise HTTPException(status_code=404, detail='Piece Not Found')
 
+@app.delete('/composers/{composer_id}', response_model=Composer)
+async def delete_composer(composer_id: int) -> Composer:
+    for idx, composer in enumerate(composers_list):
+        if composer['composer_id'] == composer_id:
+            return composers_list.pop(idx)
+    raise HTTPException(status_code=404, detail='Composer Not Found')
 
-@app.delete('composers/{composer_id}')
-async def delete_composer(composer_id: int):
-    for composer in composers_list:
-       if composer['composer_id'] == composer_id:
-           composers_list.pop(composer)
-           return composer
-    raise HTTPException(status_code=404, detail='Composer not found')
-
-
-@app.delete('pieces/{piece_name}')
-async def delete_piece(piece_name: str):
-    for piece in piece_list:
+@app.delete('/pieces/{piece_name}', response_model=Pieces)
+async def delete_piece(piece_name: str) -> Pieces:
+    for idx, piece in enumerate(piece_list):
         if piece['name'] == piece_name:
-            piece_list.pop(piece)
-            return piece
-    raise HTTPException(status_code=404, detail='Piece not found')
-
+            return piece_list.pop(idx)
+    raise HTTPException(status_code=404, detail='Piece Not Found')
