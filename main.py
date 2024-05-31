@@ -43,11 +43,17 @@ async def get_pieces(composer_id: Optional[int] = Query(None)) -> List[Pieces]:
 
 @app.post('/composers', response_model=Composer)
 async def new_composer(composer: Composer) -> Composer:
+    for comp in composers_list:
+        if comp['composer_id'] == composer.composer_id:
+            raise HTTPException(status_code=400, detail='Composer already exists')
     composers_list.append(composer.dict())
     return composer
 
 @app.post('/pieces', response_model=Pieces)
 async def new_piece(piece: Pieces) -> Pieces:
+    for existing_piece in piece_list:
+        if existing_piece['name'] == piece.name:
+            raise HTTPException(status_code=400, detail='Piece already exists')
     piece_list.append(piece.dict())
     return piece
 
@@ -57,7 +63,11 @@ async def update_composer(composer_id: int, composer: Composer) -> Composer:
         if comp["composer_id"] == composer_id:
             composers_list[idx].update(composer.dict(exclude_unset=True))
             return composers_list[idx]
-    raise HTTPException(status_code=404, detail='Composer Not Found')
+    
+    new_composer = composer.dict()
+    new_composer["composer_id"] = composer_id
+    composers_list.append(new_composer)
+    return new_composer
 
 @app.put('/pieces/{piece_name}', response_model=Pieces)
 async def update_piece(piece_name: str, piece_update: PieceUpdate) -> Pieces:
@@ -65,7 +75,11 @@ async def update_piece(piece_name: str, piece_update: PieceUpdate) -> Pieces:
         if piece['name'] == piece_name:
             piece.update(piece_update.dict(exclude_unset=True))
             return piece
-    raise HTTPException(status_code=404, detail='Piece Not Found')
+    
+    new_piece = piece_update.dict(exclude_unset=True)
+    new_piece['name'] = piece_name
+    piece_list.append(new_piece)
+    return new_piece
 
 @app.delete('/composers/{composer_id}', response_model=Composer)
 async def delete_composer(composer_id: int) -> Composer:
